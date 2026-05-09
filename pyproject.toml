@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mt-jailbench"
+version = "0.1.0"
+description = "A benchmark framework for studying multi-turn jailbreak attacks"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "anthropic",
+    "boto3",
+    "google-auth",
+    "google-genai",
+    "jinja2",
+    "numpy",
+    "openai",
+    "pandas",
+    "pyyaml",
+    "requests",
+    "tenacity",
+    "textgrad",
+    "tiktoken",
+]
+
+[project.scripts]
+benchmark = "run_benchmark:benchmark_entrypoint"
+clean = "scripts.clean:main"
+demo = "run_demo:main"
+retro-judge = "run_benchmark:retro_judge_entrypoint"
+sim-server = "scripts.sim_server:main"
+summarize = "run_benchmark:summarize_entrypoint"
+
+[project.optional-dependencies]
+sim-server = [
+    "fastapi",
+    "sentence-transformers",
+    "torch",
+    "transformers",
+    "uvicorn",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.12",
+]
+
+[tool.setuptools]
+py-modules = ["run_demo", "run_benchmark"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["engine*", "data*", "client*", "scripts*"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "SIM"]
+ignore = ["E501"]

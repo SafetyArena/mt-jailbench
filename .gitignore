@@ -1,0 +1,16 @@
+# Ignore Python cache files
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+
+# Ignore hidden files
+.*
+
+# Ignore output and log files
+outputs/
+logs/
+
+# Ignore shell scripts under root folder
+/*.sh

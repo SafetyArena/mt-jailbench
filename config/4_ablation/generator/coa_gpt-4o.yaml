@@ -1,0 +1,28 @@
+num_behaviors: null
+concurrency_limit: 10
+
+max_turns: 5
+max_epochs: 20
+
+independent_judge: false
+
+attack_type: Mix
+attack_config:
+  generator: ChainOfAttack
+  updater: Crescendo
+  judge_and_flow: Crescendo
+  attacker_model:
+    model: Qwen/Qwen2.5-32B-Instruct
+    provider: local
+    base_url: http://10.100.0.0:30000/v1
+  judge_model:
+    model: gpt-4o
+    provider: openai
+  use_llm_for_similarity: false
+  similarity_model:
+    base_url: http://localhost:8000/similarity
+  max_refines_per_turn: 3
+
+target_config:
+  model: gpt-4o
+  provider: openai

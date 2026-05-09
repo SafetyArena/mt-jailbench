@@ -1,0 +1,35 @@
+# Defines all models supported by UnifiedLLMClient.
+# Each model maps available providers to their provider-specific model IDs.
+
+# Supported providers:
+# openai, azure-openai, aws, gemini, anthropic, openrouter
+
+# Schema:
+# model_name: { provider_1: model_id, provider_2: model_id, ... }
+
+gpt-5.2: { openai: gpt-5.2-2025-12-11, azure-openai: gpt-5.2-2025-12-11 }
+gpt-5.1: { openai: gpt-5.1-2025-11-13, azure-openai: gpt-5.1-2025-11-13 }
+gpt-5: { openai: gpt-5-2025-08-07, azure-openai: gpt-5-2025-08-07 }
+gpt-4o: { openai: gpt-4o-2024-11-20, azure-openai: gpt-4o-2024-11-20 }
+gpt-5-mini: { openai: gpt-5-mini, azure-openai: gpt-5-mini }
+gpt-5-nano: { openai: gpt-5-nano, azure-openai: gpt-5-nano }
+gpt-4o-mini: { openai: gpt-4o-mini, azure-openai: gpt-4o-mini }
+
+gemini-3-flash-preview: { gemini: gemini-3-flash-preview }
+gemini-3-pro-preview: { gemini: gemini-3-pro-preview }
+
+claude-sonnet-4.5: { anthropic: claude-sonnet-4-5, openrouter: anthropic/claude-sonnet-4.5 }
+claude-haiku-4.5: { anthropic: claude-haiku-4-5, openrouter: anthropic/claude-haiku-4.5 }
+
+llama-4-maverick: { openrouter: meta-llama/llama-4-maverick }
+llama-4-scout: { openrouter: meta-llama/llama-4-scout }
+
+qwen3.5-flash: { openrouter: qwen/qwen3.5-flash-02-23 }
+qwen3.5-plus: { openrouter: qwen/qwen3.5-plus-20260420 }
+
+grok-4.1-fast: { openrouter: x-ai/grok-4.1-fast }
+
+nemotron-3-nano: { openrouter: nvidia/nemotron-3-nano-30b-a3b }
+nemotron-3-super: { openrouter: nvidia/nemotron-3-super-120b-a12b }
+
+deepseek-v3.2: { openrouter: deepseek/deepseek-v3.2 }
