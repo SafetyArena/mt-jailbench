@@ -26,8 +26,16 @@ attack_config:
     provider: openai
   max_refines_per_turn: 10
 
-# Defense configuration (optional) 
-defense_type: placeholder
+# Defense configuration (optional)
+# Parsed by run_benchmark / load_config → JailbreakEngine(defense_types=..., defense_config=...).
+# Enum values must match engine.defense_type.DefenseType (e.g. Guard, Dummy).
+defense_types:
+  - Guard
+defense_config:
+  Guard:
+    guard_type: circuit_breaker
+    base_url: http://localhost:8080/v1
+    model: guard
 
 # Target model configuration (required) 
 target_config:
