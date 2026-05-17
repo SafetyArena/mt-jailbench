@@ -89,6 +89,8 @@ class JailbreakEngine:
         # initialize attack (can only have one) and defenses (can have multiple)
         self._init_attack(attack_type, attack_config, target_config)
         self._init_defenses(defense_types, defense_config, target_config)
+        if self.defenses:
+            logger.info("Active defenses: %s", [name for _, name in self.defenses])
     
     def _init_attack(self, attack_type, attack_config, target_config):
         logger.info(f"Initializing {attack_type.value} attack...")
@@ -186,6 +188,9 @@ class JailbreakEngine:
                 case DefenseType.DUMMY:
                     from .defenses.dummy import DummyTextProcessor
                     text_processor = DummyTextProcessor(self.context, specific_config)
+                case DefenseType.GUARD:
+                    from .defenses.guard import GuardTextProcessor
+                    text_processor = GuardTextProcessor(self.context, specific_config)
                 case _:
                     raise ValueError(f"Defense type {defense_type} not supported")
 

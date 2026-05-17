@@ -32,7 +32,7 @@ class AttackAttempt:
     post_trace: list[str] | None = None
 
     # custom info
-    additional_info: dict[str, Any] = field(default_factory=dict)
+    defense_info: dict[str, Any] = field(default_factory=dict)
 
     # private: util for RETRY and JUMP_TO logic
     _conv_after_response: Conversation | None = None
@@ -55,6 +55,8 @@ class AttackAttempt:
             d["pre_trace"] = self.pre_trace
         if self.post_trace is not None:
             d["post_trace"] = self.post_trace
+        if self.defense_info:
+            d["defense_info"] = self.defense_info
         return d
 
 

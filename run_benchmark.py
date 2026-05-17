@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from data.harmbench import load_datasets
 from engine.attack_type import AttackType
+from engine.defense_type import DefenseType
 from engine.jailbreak_engine import JailbreakEngine
 from engine.utils.independent_judge import JailbreakJudge
 
@@ -34,10 +35,45 @@ logging.getLogger("engine.jailbreak_engine").setLevel(logging.WARNING)
 logger = logging.getLogger("run_benchmark")
 
 
+def _parse_defense(cfg: dict) -> None:
+    """Populate defense_types / defense_config / defense_type for JailbreakEngine and summaries."""
+    skip = {"", "placeholder", "none", "null"}
+    names: list[str] = []
+    raw_list = cfg.get("defense_types")
+    raw_single = cfg.get("defense_type")
+
+    if raw_list is not None:
+        if not isinstance(raw_list, list):
+            raw_list = [raw_list]
+        names = [str(x).strip() for x in raw_list if x is not None and str(x).strip()]
+    elif raw_single is not None and str(raw_single).strip().lower() not in skip:
+        names = [str(raw_single).strip()]
+
+    if not names:
+        cfg["defense_types"] = None
+        if cfg.get("defense_config") is None:
+            cfg["defense_config"] = None
+        cfg["defense_type"] = None
+        return
+
+    try:
+        cfg["defense_types"] = [DefenseType(n) for n in names]
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid defense type(s) {names!r}; expected one of {[d.value for d in DefenseType]}"
+        ) from e
+
+    if cfg.get("defense_config") is None:
+        cfg["defense_config"] = {}
+
+    cfg["defense_type"] = ", ".join(d.value for d in cfg["defense_types"])
+
+
 def load_config(path: str) -> dict:
     with open(path) as f:
         cfg = yaml.safe_load(f)
     cfg["attack_type"] = AttackType(cfg["attack_type"])
+    _parse_defense(cfg)
     return cfg
 
 
@@ -94,10 +130,12 @@ def run_single_behavior(
             max_turns=cfg["max_turns"],
             max_epochs=cfg["max_epochs"],
             independent_judge=cfg.get("independent_judge", False),
-            attack_type=AttackType(cfg["attack_type"]),
+            attack_type=cfg["attack_type"],
             attack_config=cfg["attack_config"],
             target_config=cfg["target_config"],
             independent_judge_config=cfg.get("independent_judge_config"),
+            defense_types=cfg.get("defense_types"),
+            defense_config=cfg.get("defense_config"),
         )
         engine.execute()
 
