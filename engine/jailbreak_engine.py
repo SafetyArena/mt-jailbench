@@ -2,8 +2,9 @@ import json
 import logging
 import os
 import re
+from copy import deepcopy
 
-from client.unified_llm_client import UnifiedLLMClient
+from client.unified_llm_client import Conversation, UnifiedLLMClient
 
 from .attack_type import AttackType
 from .core import (
@@ -14,8 +15,7 @@ from .core import (
     AttackTurn,
     OutcomeCode,
 )
-from .defense_type import DefenseType
-from .interfaces.defense.text_processor import TextProcessor
+from .defenses import DefendedModel, VictimAdapter
 from .utils.independent_judge import JailbreakJudge
 
 logger = logging.getLogger(__name__)
@@ -47,8 +47,7 @@ class JailbreakEngine:
         attack_config: dict,
         target_config: dict,
         # below are optional params
-        defense_types: list[DefenseType] | None = None,
-        defense_config: dict | None = None,
+        defense: dict | None = None,
         independent_judge_config: dict | None = None,
     ) -> None:
         # initialize context - this is where all information will be stored
@@ -86,11 +85,14 @@ class JailbreakEngine:
             base_url=target_config.get("base_url")
         )
 
-        # initialize attack (can only have one) and defenses (can have multiple)
+        # initialize attack and the optional single defense
         self._init_attack(attack_type, attack_config, target_config)
-        self._init_defenses(defense_types, defense_config, target_config)
-        if self.defenses:
-            logger.info("Active defenses: %s", [name for _, name in self.defenses])
+        self.defended_model = DefendedModel(
+            config=defense,
+            victim=VictimAdapter(self.target),
+        )
+        if self.defended_model.enabled:
+            logger.info("Active defense: %s", self.defended_model.defense_method)
     
     def _init_attack(self, attack_type, attack_config, target_config):
         logger.info(f"Initializing {attack_type.value} attack...")
@@ -166,35 +168,6 @@ class JailbreakEngine:
                 self.prompt_generator = MixPromptGenerator(self.context, attack_config)
                 self.outcome_evaluator = MixOutcomeEvaluator(self.context, attack_config)
                 self.flow_controller = MixFlowController(self.context, attack_config)
-
-    def _init_defenses(self, defense_types, defense_config, target_config):
-        # list of tuples (text_processor, defense_name)
-        self.defenses: list[tuple[TextProcessor, str]] = []
-
-        if not defense_types:
-            return
-
-        # initialize defenses in the same order as user specified
-        for defense_type in defense_types:
-            logger.info(f"Initializing {defense_type.value} defense...")
-
-            # defense config looks something like { defense_name: {...} }
-            # so extract the specific config for each defense
-            specific_config = defense_config.get(defense_type.value, {})
-            specific_config["mirror_target_config"] = target_config.copy()
-
-            text_processor = None
-            match defense_type:
-                case DefenseType.DUMMY:
-                    from .defenses.dummy import DummyTextProcessor
-                    text_processor = DummyTextProcessor(self.context, specific_config)
-                case DefenseType.GUARD:
-                    from .defenses.guard import GuardTextProcessor
-                    text_processor = GuardTextProcessor(self.context, specific_config)
-                case _:
-                    raise ValueError(f"Defense type {defense_type} not supported")
-
-            self.defenses.append((text_processor, defense_type.value))
 
     def execute(self) -> None:
         """
@@ -317,39 +290,30 @@ class JailbreakEngine:
             attempt.prompt = self.prompt_generator.next_prompt(context)
         self._pretty_log("Prmp", attempt.prompt)
 
-        # step 1.5: if defense(s) is configured, pre-process the prompt
-        if self.defenses:
-            attempt.pre_trace = [{"stage": "raw", "text": attempt.prompt}]
-        for tp, name in self.defenses:
-            result = tp.process_prompt(context)
-            if result is None:
-                continue  # None means no change
-            attempt.prompt = result
-            attempt.pre_trace.append({"stage": f"after {name}", "text": attempt.prompt})
-            self._pretty_log("Prmp", attempt.prompt, True)
-
-        # step 2: send prompt to target model and get response
-        attempt.response, attempt._conv_after_response = self.target.generate(
-            user_input=attempt.prompt,
-            conversation=context.conversation,
-            system_prompt=attempt.system_prompt,
-        )
+        # step 2: the selected defense owns the complete victim interaction. This is
+        # necessary for defenses that block before generation or sample the victim
+        # multiple times.
+        if self.defended_model.enabled:
+            messages = self._build_defense_messages(attempt)
+            attempt.response, defense_info = self.defended_model.process(
+                messages,
+                prev_defense_info=self._previous_defense_info(),
+            )
+            attempt.defense_info = dict(defense_info or {})
+            attempt._conv_after_response = self._canonical_conversation(attempt)
+        else:
+            attempt.response, attempt._conv_after_response = self.target.generate(
+                user_input=attempt.prompt,
+                conversation=context.conversation,
+                system_prompt=attempt.system_prompt,
+            )
         if attempt.response is None:
             logger.warning("Target model returned None (likely due to content filter), using dummy response instead")
             attempt.response = "I’m sorry, I can’t help with that request."
+            if self.defended_model.enabled:
+                attempt._conv_after_response = self._canonical_conversation(attempt)
         self._pretty_log("Resp", attempt.response)
         context.conversation = attempt._conv_after_response
-
-        # step 2.5: if defense(s) is configured, post-process the response
-        if self.defenses:
-            attempt.post_trace = [{"stage": "raw", "text": attempt.response}]
-        for tp, name in self.defenses:
-            result = tp.process_response(context)
-            if result is None:
-                continue  # None means no change
-            attempt.response = result
-            attempt.post_trace.append({"stage": f"after {name}", "text": attempt.response})
-            self._pretty_log("Resp", attempt.response, True)
 
         # step 3: send context to OutcomeEvaluator and get evaluation
         attempt.evaluation = self.outcome_evaluator.evaluate(context)
@@ -358,6 +322,45 @@ class JailbreakEngine:
         # step 4: send context to State Updater and get next action
         attempt.next_action = self.flow_controller.next_action(context)
         self._pretty_log("Actn", str(attempt.next_action))
+
+    def _build_defense_messages(self, attempt: AttackAttempt) -> list[dict[str, str]]:
+        context = self.context
+        messages = (
+            deepcopy(context.conversation.serialize(include_system=False))
+            if context.conversation
+            else []
+        )
+        system_prompt = attempt.system_prompt
+        if system_prompt is None and context.conversation:
+            system_prompt = context.conversation.system_prompt
+        if system_prompt:
+            messages.insert(0, {"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": str(attempt.prompt or "")})
+        return messages
+
+    def _canonical_conversation(self, attempt: AttackAttempt) -> Conversation:
+        """Store the attacker-visible prompt and defended response for future turns."""
+        context = self.context
+        system_prompt = attempt.system_prompt
+        history: list[dict[str, str]] = []
+        if context.conversation:
+            history = deepcopy(context.conversation.history)
+            if system_prompt is None:
+                system_prompt = context.conversation.system_prompt
+        conversation = Conversation(system_prompt=system_prompt)
+        conversation.history = history
+        conversation.add_user_message(str(attempt.prompt or ""))
+        conversation.add_assistant_message(str(attempt.response or ""))
+        return conversation
+
+    def _previous_defense_info(self) -> dict | None:
+        """Return state from the previous in-effect turn, respecting retry/jump semantics."""
+        if self.context.current_turn <= 1:
+            return None
+        previous = self.context.get_turn(self.context.current_turn - 1).attempt_in_effect
+        if previous is None or not previous.defense_info:
+            return None
+        return deepcopy(previous.defense_info)
     
     def _pretty_log(self, prefix: str, text: str, mark: bool=False):
         logger.info(
@@ -442,12 +445,6 @@ class JailbreakEngine:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w") as f:
             s = json.dumps(log, ensure_ascii=False, indent=2)
-            # collapse defense tracing dicts like {"stage": "...", "text": "..."}
-            s = re.sub(
-                r'\{\n\s+"stage": "(.*?)",\n\s+"text": "(.*?)"\n\s+\}',
-                r'{"stage": "\1", "text": "\2"}',
-                s
-            )
             # collapse evaluation dict
             s = re.sub(
                 r'"evaluation":\s*\{\n(.*?)\n\s*\}',

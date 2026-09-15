@@ -27,13 +27,12 @@ attack_config:
   max_refines_per_turn: 10
 
 # Defense configuration (optional)
-# Parsed by run_benchmark / load_config → JailbreakEngine(defense_types=..., defense_config=...).
-# Enum values must match engine.defense_type.DefenseType (e.g. Guard, Dummy).
-defense_types:
-  - Guard
-defense_config:
-  Guard:
-    guard_type: circuit_breaker
+# Exactly one method may be selected: aligner, backtranslation, guard, nbf,
+# paraphrase, smoothllm, or tca. Set defense to null to disable defenses.
+defense:
+  defense_method: guard
+  guard:
+    guard_type: llamaguard
     base_url: http://localhost:8080/v1
     model: guard
 

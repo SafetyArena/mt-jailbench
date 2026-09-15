@@ -19,7 +19,7 @@ Each attempt is assigned an **epoch** number, which records the chronological or
 
 ### Attack Context
 
-[**Attack Context**](../engine/core/context.py) is a data class that aggregates all data generated throughout a multi-turn attack. Such design enables uniform attack/defense interfaces that always accept an attack context as the only parameter.
+[**Attack Context**](../engine/core/context.py) is a data class that aggregates all data generated throughout a multi-turn attack. Attack components consume this shared context, while the selected defense receives an OpenAI-style message list and owns the complete target-model interaction.
 
 Besides some metadata, the attack context maintains both a **full history** and a **running history**:
 
@@ -28,16 +28,25 @@ Besides some metadata, the attack context maintains both a **full history** and 
 
 ## System Design
 
-![system design diagram](workflow.png)
+```mermaid
+flowchart LR
+    PG[Prompt Generator] --> DM[Defended Model]
+    DM -->|zero, one, or multiple calls| T[Target LLM]
+    T --> DM
+    DM --> R[Defended response]
+    R --> OE[Outcome Evaluator]
+    OE --> FC[Flow Controller]
+    FC -->|continue / retry / jump| PG
+```
 
 In each attempt, the framework executes the following steps:
 
-1. Attacker generates an attack prompt
-2. Defenser (if enabled) pre-processes the prompt
-3. Target model produces a response
-4. Defenser (if enabled) post-processes the response
-5. Attacker evaluate the outcome
-6. Attacker decides the next action
+1. The attacker generates an attack prompt.
+2. The selected `DefendedModel` processes the full conversation and controls the target call. Depending on the method, it may rewrite or block the prompt, call the target once or multiple times, and filter the response.
+3. The engine stores the original attacker prompt together with the defended response.
+4. The attacker evaluates the defended outcome and decides the next action.
+
+Only one defense can be active in a run. See [Defenses](./defenses.md) for the public interface and configuration.
 
 ## Control Flow
 

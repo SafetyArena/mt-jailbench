@@ -1,7 +1,7 @@
 #!/bin/bash
 set -a
 
-MODEL_PATH="GraySwanAI/Llama-3-8B-Instruct-RR" # meta-llama/Llama-Guard-3-8B | GraySwanAI/Llama-3-8B-Instruct-RR | Qwen/Qwen3Guard-Gen-8B | allenai/wildguard
+MODEL_PATH="meta-llama/Llama-Guard-3-8B" # meta-llama/Llama-Guard-3-8B | Qwen/Qwen3Guard-Gen-8B | allenai/wildguard
 PORT="8080"
 NODE="0.0.0.0"
 MODEL_NAME="guard"

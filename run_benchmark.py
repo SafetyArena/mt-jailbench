@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from data.harmbench import load_datasets
 from engine.attack_type import AttackType
-from engine.defense_type import DefenseType
+from engine.defenses import DefendedModel
 from engine.jailbreak_engine import JailbreakEngine
 from engine.utils.independent_judge import JailbreakJudge
 
@@ -36,37 +36,38 @@ logger = logging.getLogger("run_benchmark")
 
 
 def _parse_defense(cfg: dict) -> None:
-    """Populate defense_types / defense_config / defense_type for JailbreakEngine and summaries."""
-    skip = {"", "placeholder", "none", "null"}
-    names: list[str] = []
-    raw_list = cfg.get("defense_types")
-    raw_single = cfg.get("defense_type")
-
-    if raw_list is not None:
-        if not isinstance(raw_list, list):
-            raw_list = [raw_list]
-        names = [str(x).strip() for x in raw_list if x is not None and str(x).strip()]
-    elif raw_single is not None and str(raw_single).strip().lower() not in skip:
-        names = [str(raw_single).strip()]
-
-    if not names:
-        cfg["defense_types"] = None
-        if cfg.get("defense_config") is None:
-            cfg["defense_config"] = None
-        cfg["defense_type"] = None
-        return
-
-    try:
-        cfg["defense_types"] = [DefenseType(n) for n in names]
-    except ValueError as e:
+    """Validate and normalize the single D-Judge-style defense object."""
+    legacy_keys = [
+        key
+        for key in ("defense_types", "defense_type", "defense_config")
+        if key in cfg
+    ]
+    if legacy_keys:
         raise ValueError(
-            f"Invalid defense type(s) {names!r}; expected one of {[d.value for d in DefenseType]}"
-        ) from e
+            "Legacy defense configuration is no longer supported "
+            f"({', '.join(legacy_keys)}). Use defense: {{defense_method: ..., <method>: {{...}}}}."
+        )
 
-    if cfg.get("defense_config") is None:
-        cfg["defense_config"] = {}
+    raw = cfg.get("defense")
+    if raw is None:
+        cfg["defense"] = None
+        return
+    if not isinstance(raw, dict):
+        raise TypeError("defense must be a mapping or null")
 
-    cfg["defense_type"] = ", ".join(d.value for d in cfg["defense_types"])
+    defense = dict(raw)
+    method = str(defense.get("defense_method") or "").strip().lower()
+    if method in {"none", "null"}:
+        method = ""
+    if method in {"djudge", "proact"}:
+        raise ValueError(f"Defense {method!r} is intentionally not supported by MT-JailBench")
+    if method and method not in DefendedModel.SUPPORTED_METHODS:
+        supported = ", ".join(DefendedModel.SUPPORTED_METHODS)
+        raise ValueError(f"Unknown defense_method={method!r}; expected one of: {supported}")
+    if method and method in defense and not isinstance(defense[method], dict):
+        raise TypeError(f"defense.{method} must be a mapping")
+    defense["defense_method"] = method
+    cfg["defense"] = defense
 
 
 def load_config(path: str) -> dict:
@@ -134,8 +135,7 @@ def run_single_behavior(
             attack_config=cfg["attack_config"],
             target_config=cfg["target_config"],
             independent_judge_config=cfg.get("independent_judge_config"),
-            defense_types=cfg.get("defense_types"),
-            defense_config=cfg.get("defense_config"),
+            defense=cfg.get("defense"),
         )
         engine.execute()
 
@@ -329,12 +329,15 @@ def summarize_run(run_dir: str) -> dict:
         "average_turns_used": round(turn_sum / turn_count, 2) if turn_count else None,
         "max_epochs_used": max_epoch,
     }
+    configured_defense = str(
+        (config.get("defense") or {}).get("defense_method") or ""
+    ).strip().lower()
     summary = {
         "run_dir": run_dir,
         "total_behaviors": total,
         "target_model": config.get("target_config", {}).get("model"),
         "attack_type": config.get("attack_type"),
-        "defense_type": config.get("defense_type"),
+        "defense_method": configured_defense or None,
         "self_reported_successes": self_reported_successes,
         "self_reported_success_rate": round(self_reported_successes / total, 4) if total else 0.0,
         "validated_successes": validated_successes,
@@ -352,7 +355,7 @@ def summarize_run(run_dir: str) -> dict:
     print(f"Summary for {run_dir}")
     print(f"  Model name:                  {summary['target_model']}")
     print(f"  Attack type:                 {summary['attack_type']}")
-    print(f"  Defense type:                {summary['defense_type']}")
+    print(f"  Defense method:              {summary['defense_method']}")
     print(f"  Total:                       {total}")
     print(f"  Self-reported successes:     {self_reported_successes}")
     print(f"  Self-reported success rate:  {summary['self_reported_success_rate']:.2%}")
