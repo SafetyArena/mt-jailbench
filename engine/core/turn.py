@@ -11,7 +11,7 @@ from .evaluation import TurnEvaluation
 class AttackAttempt:
     """
     An AttackAttempt records all data generated during an attempt. The workflow is:
-    PromptGenerator -> TextProcessor (pre) -> TargetLLM -> TextProcessor (post) -> OutcomeEvaluator -> FlowController
+    PromptGenerator -> DefendedModel -> OutcomeEvaluator -> FlowController
     """
     # each attempt can be uniquely identified by its epoch number
     epoch: int
@@ -27,12 +27,8 @@ class AttackAttempt:
     # control flow
     next_action: NextAction | None = None
 
-    # trace for defenses
-    pre_trace: list[str] | None = None
-    post_trace: list[str] | None = None
-
-    # custom info
-    additional_info: dict[str, Any] = field(default_factory=dict)
+    # defense-specific trace and decisions
+    defense_info: dict[str, Any] = field(default_factory=dict)
 
     # private: util for RETRY and JUMP_TO logic
     _conv_after_response: Conversation | None = None
@@ -50,11 +46,8 @@ class AttackAttempt:
             "evaluation": None if self.evaluation is None else self.evaluation.to_dict(),
             "action": None if self.next_action is None else str(self.next_action),
         }
-        # if defenses were used, append defense tracing
-        if self.pre_trace is not None:
-            d["pre_trace"] = self.pre_trace
-        if self.post_trace is not None:
-            d["post_trace"] = self.post_trace
+        if self.defense_info:
+            d["defense_info"] = self.defense_info
         return d
 
 

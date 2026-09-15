@@ -19,9 +19,11 @@ dependencies = [
     "pandas",
     "pyyaml",
     "requests",
+    "sentence-transformers",
     "tenacity",
     "textgrad",
     "tiktoken",
+    "torch",
 ]
 
 [project.scripts]
@@ -35,14 +37,13 @@ summarize = "run_benchmark:summarize_entrypoint"
 [project.optional-dependencies]
 sim-server = [
     "fastapi",
-    "sentence-transformers",
-    "torch",
     "transformers",
     "uvicorn",
 ]
 
 [dependency-groups]
 dev = [
+    "pytest>=8.0",
     "ruff>=0.15.12",
 ]
 
@@ -52,6 +53,9 @@ py-modules = ["run_demo", "run_benchmark"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["engine*", "data*", "client*", "scripts*"]
+
+[tool.setuptools.package-data]
+"engine.defenses" = ["*.pth"]
 
 [tool.uv]
 package = true

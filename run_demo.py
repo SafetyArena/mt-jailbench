@@ -59,20 +59,15 @@ INDP_JUDGE_CONFIG = {
     "majority_vote_threshold": 3,
 }
 
-DEFENSE_TYPES, DEFENSE_CONFIG = None, None  # keep this line to prevent error
+DEFENSE = None
 
 # Defense is optional (feel free to comment out):
-# DEFENSE_TYPES = [DefenseType.DUMMY]
-# DEFENSE_CONFIG = {
-#     "Dummy": {
-#         "pre_upper": True,
-#         "post_refusal": False,
-#         "post_emoji": True,
-#         "defender_model": {
-#             "model": "gpt-4o",
-#             "provider": "openai",
-#             "base_url": None
-#         }
+# DEFENSE = {
+#     "defense_method": "guard",
+#     "guard": {
+#         "guard_type": "llamaguard",
+#         "base_url": "http://localhost:8080/v1",
+#         "model": "guard",
 #     }
 # }
 
@@ -89,8 +84,7 @@ BASE_ENGINE_KWARGS = {
     "independent_judge": INDP_JUDGE,
     "target_config": TARGET_CONFIG,
     "independent_judge_config": INDP_JUDGE_CONFIG,
-    "defense_types": DEFENSE_TYPES if DEFENSE_TYPES else None,
-    "defense_config": DEFENSE_CONFIG if DEFENSE_CONFIG else None,
+    "defense": DEFENSE,
 }
 
 ATTACK_SPECS = {
