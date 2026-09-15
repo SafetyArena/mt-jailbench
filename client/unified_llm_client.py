@@ -147,7 +147,7 @@ class UnifiedLLMClient:
 
             case "gemini":
                 check_env_var("GEMINI_API_KEY")
-                self.client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+                self.client = genai.Client()
 
             case "aws":
                 check_env_var("AWS_ACCESS_KEY_ID")
@@ -167,7 +167,7 @@ class UnifiedLLMClient:
                     raise ValueError("Please specify base_url to use local model")
                 if not base_url.rstrip("/").endswith("/v1"):
                     raise ValueError("base_url should end with '/v1' (e.g. http://localhost:30000/v1)")
-                self.client = OpenAI(base_url=base_url, api_key="")
+                self.client = OpenAI(base_url=base_url)
 
             case _:
                 raise ValueError(f"Invalid provider {self.provider}")

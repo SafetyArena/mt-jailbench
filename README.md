@@ -103,6 +103,10 @@ Currently supported attack types: `crescendo`, `actor`, `coa`, `fitd`, `xteaming
 
 Benchmark mode evaluates 159 harmful behaviors from the HarmBench dataset. It requires a YAML configuration file; see [sample config file](./config/sample.yaml) for an example.
 
+An experiment can enable one built-in defense through the top-level `defense` object.
+See [Defenses](./docs/defenses.md) for supported methods, configuration, and required
+model services.
+
 ```sh
 # Step 1: Run the benchmark.
 uv run benchmark --config ./config/sample.yaml --name sample_run
@@ -147,5 +151,6 @@ This README covers the basics of using MT-JailBench. More detailed documentation
 - [Developer Guide](./docs/developer_guide.md): explains key terminology and the system architecture
 - [Unified LLM Client Guide](./docs/unified_llm_client.md): explains how to use the unified LLM client across different providers
 - [Attacks](./docs/attacks.md): explains how to use built-in attacks and how to implement new attacks
+- [Defenses](./docs/defenses.md): explains the seven built-in defenses and their configuration
 
 </details>

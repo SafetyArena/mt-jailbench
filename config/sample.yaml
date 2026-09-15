@@ -26,8 +26,15 @@ attack_config:
     provider: openai
   max_refines_per_turn: 10
 
-# Defense configuration (optional) 
-defense_type: placeholder
+# Defense configuration (optional)
+# Exactly one method may be selected: aligner, backtranslation, guard, nbf,
+# paraphrase, smoothllm, or tca. Set defense to null to disable defenses.
+defense:
+  defense_method: guard
+  guard:
+    guard_type: llamaguard
+    base_url: http://localhost:8080/v1
+    model: guard
 
 # Target model configuration (required) 
 target_config:
