@@ -15,7 +15,7 @@ from .core import (
     AttackTurn,
     OutcomeCode,
 )
-from .defenses import DefendedModel, VictimAdapter
+from .defenses.defended_model import MISSING_RESPONSE_REFUSAL, DefendedModel, VictimAdapter
 from .utils.independent_judge import JailbreakJudge
 
 logger = logging.getLogger(__name__)
@@ -290,28 +290,16 @@ class JailbreakEngine:
             attempt.prompt = self.prompt_generator.next_prompt(context)
         self._pretty_log("Prmp", attempt.prompt)
 
-        # step 2: the selected defense owns the complete victim interaction. This is
-        # necessary for defenses that block before generation or sample the victim
-        # multiple times.
-        if self.defended_model.enabled:
-            messages = self._build_defense_messages(attempt)
-            attempt.response, defense_info = self.defended_model.process(
-                messages,
-                prev_defense_info=self._previous_defense_info(),
-            )
-            attempt.defense_info = dict(defense_info or {})
-            attempt._conv_after_response = self._canonical_conversation(attempt)
-        else:
-            attempt.response, attempt._conv_after_response = self.target.generate(
-                user_input=attempt.prompt,
-                conversation=context.conversation,
-                system_prompt=attempt.system_prompt,
-            )
+        # step 2: DefendedModel owns the target interaction for every attempt.
+        attempt.response, defense_info = self.defended_model.process(
+            self._build_defense_messages(attempt),
+            prev_defense_info=self._previous_defense_info(),
+        )
+        attempt.defense_info = dict(defense_info or {})
         if attempt.response is None:
             logger.warning("Target model returned None (likely due to content filter), using dummy response instead")
-            attempt.response = "I’m sorry, I can’t help with that request."
-            if self.defended_model.enabled:
-                attempt._conv_after_response = self._canonical_conversation(attempt)
+            attempt.response = MISSING_RESPONSE_REFUSAL
+        attempt._conv_after_response = self._canonical_conversation(attempt)
         self._pretty_log("Resp", attempt.response)
         context.conversation = attempt._conv_after_response
 
@@ -333,7 +321,7 @@ class JailbreakEngine:
         system_prompt = attempt.system_prompt
         if system_prompt is None and context.conversation:
             system_prompt = context.conversation.system_prompt
-        if system_prompt:
+        if system_prompt is not None:
             messages.insert(0, {"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": str(attempt.prompt or "")})
         return messages

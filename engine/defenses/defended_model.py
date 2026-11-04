@@ -4,6 +4,8 @@ from typing import Any
 
 from client.unified_llm_client import Conversation, UnifiedLLMClient
 
+MISSING_RESPONSE_REFUSAL = "I’m sorry, I can’t help with that request."
+
 
 class VictimAdapter:
     """Expose the victim interface used by the defenses without changing the LLM client API."""
@@ -16,25 +18,25 @@ class VictimAdapter:
         messages: list[dict[str, str]] | str,
         *,
         max_tokens: int | None = None,
+        missing_response: str = "",
     ) -> str:
         if isinstance(messages, str):
             response, _ = self._client.generate(
                 user_input=messages,
                 max_output_tokens=max_tokens,
             )
-            return str(response or "")
+        else:
+            if not messages or messages[-1].get("role") != "user":
+                raise ValueError("messages must end with role 'user'")
 
-        if not messages or messages[-1].get("role") != "user":
-            raise ValueError("messages must end with role 'user'")
-
-        prior = Conversation.from_list(messages[:-1])
-        response, _ = self._client.generate(
-            user_input=str(messages[-1].get("content") or ""),
-            conversation=prior,
-            system_prompt=prior.system_prompt,
-            max_output_tokens=max_tokens,
-        )
-        return str(response or "")
+            prior = Conversation.from_list(messages[:-1])
+            response, _ = self._client.generate(
+                user_input=str(messages[-1].get("content") or ""),
+                conversation=prior,
+                system_prompt=prior.system_prompt,
+                max_output_tokens=max_tokens,
+            )
+        return missing_response if response is None else str(response)
 
 
 class DefendedModel:
@@ -134,4 +136,7 @@ class DefendedModel:
     ) -> tuple[str, dict[str, Any] | None]:
         del prev_defense_info
         active_victim = victim if victim is not None else self.victim
-        return str(active_victim.generate(messages)), None
+        if isinstance(active_victim, VictimAdapter):
+            return active_victim.generate(messages, missing_response=MISSING_RESPONSE_REFUSAL), None
+        response = active_victim.generate(messages)
+        return MISSING_RESPONSE_REFUSAL if response is None else str(response), None
