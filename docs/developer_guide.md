@@ -42,7 +42,7 @@ flowchart LR
 In each attempt, the framework executes the following steps:
 
 1. The attacker generates an attack prompt.
-2. The selected `DefendedModel` processes the full conversation and controls the target call. Depending on the method, it may rewrite or block the prompt, call the target once or multiple times, and filter the response.
+2. Every attempt passes the full conversation to `DefendedModel.process`. With no defense enabled, it calls the target once and returns its response. A configured defense may rewrite or block the prompt, call the target multiple times, or filter the response.
 3. The engine stores the original attacker prompt together with the defended response.
 4. The attacker evaluates the defended outcome and decides the next action.
 
